@@ -1,0 +1,555 @@
+package frc.robot;
+
+import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Solenoid;
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.GenericHID.Hand;
+import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+import com.revrobotics.CANEncoder;
+import com.revrobotics.CANSparkMax;
+import com.revrobotics.SparkMax;
+import com.revrobotics.CANSparkMaxLowLevel.MotorType;
+import edu.wpi.first.wpilibj.PWMSparkMax;
+
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
+import edu.wpi.first.networktables.NetworkTableInstance;
+
+import com.ctre.phoenix.motorcontrol.ControlMode;
+import com.ctre.phoenix.motorcontrol.FeedbackDevice;
+import com.ctre.phoenix.motorcontrol.can.TalonSRX;
+import com.ctre.phoenix.motorcontrol.can.VictorSPX;
+
+public class Robot extends TimedRobot {
+
+  private DifferentialDrive m_myRobot;
+
+  private CANEncoder arm_encoder;
+  //private CANEncoder m_encoder2;
+  
+  private static final int leftLeadDeviceID1 = 9; 
+
+  private static final int leftFollowDeviceID2 = 3;
+
+  private static final int rightLeadDeviceID1 = 5;
+
+  private static final int rightFollowDeviceID2 = 2;
+  
+  private static final int Intake = 1;
+
+  private static final int Arm = 4;
+
+  private static final int Arma = 7;
+
+  private static final int MClimb = 8;
+
+  
+
+  private CANSparkMax m_leftMotor1;
+
+  private CANSparkMax m_rightMotor1;
+
+  private CANSparkMax m_leftMotor2;
+
+  private CANSparkMax m_rightMotor2;
+
+  private CANSparkMax Intake2;
+  
+  private CANSparkMax Arm2;
+
+  private CANSparkMax Arma2;
+
+  private CANSparkMax MClimb2;
+
+  private TalonSRX wheelSpinnerShooter2;
+
+  private TalonSRX Shooter2;
+
+  private VictorSPX SBelt2;
+
+  private VictorSPX IBelt2;
+
+ // private VictorSPX Climber2;
+
+  //private VictorSPX Climb2;
+
+  Solenoid shooterAngle;
+  
+  XboxController driver;
+  XboxController mech;
+
+  DigitalInput photoSensor;
+
+  NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
+  NetworkTableEntry tx = table.getEntry("tx");
+  NetworkTableEntry ty = table.getEntry("ty");
+  NetworkTableEntry ta = table.getEntry("ta");
+  
+  final float Kp = -0.1f;  // Proportional control constant
+  
+  private boolean m_LimelightHasValidTarget = false;
+  private boolean m_LimelightHasValidTarget2 = false;
+  private final double m_LimelightDriveCommand = 0.0;
+  private double m_LimelightSteerCommand = 0.0;
+  
+  private double startTime;
+  private double autoDrive = 0;
+  private double autoTurn = 0;
+  SendableChooser<Integer> autoChooser = new SendableChooser<>();
+  
+  private double ballSpeed = 0;
+  private double suckSpeed = 0;
+  private double sbSpeed = 0;
+  private double ibSpeed = 0;
+  private double doArm = 0;
+
+  @Override
+  public void robotInit() {
+
+    autoChooser.addDefault("Shoot5", 1);
+    autoChooser.addObject("GetOut" , 2);
+    autoChooser.addObject("Shoot3"  ,3);
+    // etc.
+    SmartDashboard.putData("Autonomous routine", autoChooser);
+
+    this.driver = new XboxController(0);
+    this.mech = new XboxController(1);
+
+    m_leftMotor1 = new CANSparkMax(leftLeadDeviceID1, MotorType.kBrushless);
+    m_rightMotor1 = new CANSparkMax(rightLeadDeviceID1, MotorType.kBrushless);
+    m_leftMotor2 = new CANSparkMax(leftFollowDeviceID2, MotorType.kBrushless);
+    m_rightMotor2 = new CANSparkMax(rightFollowDeviceID2, MotorType.kBrushless);
+
+     wheelSpinnerShooter2 = new TalonSRX(15);
+     Shooter2 = new TalonSRX(16);
+    IBelt2 = new VictorSPX(17);
+    SBelt2 = new VictorSPX(18);
+    //Climb2 = new VictorSPX(19);
+    //Climber2 = new VictorSPX(20);
+    Intake2 = new CANSparkMax(Intake, MotorType.kBrushless);
+    Arm2 = new CANSparkMax(Arm, MotorType.kBrushless);
+    
+    Arma2 = new CANSparkMax(Arma, MotorType.kBrushless);
+    MClimb2 = new CANSparkMax(MClimb, MotorType.kBrushless);
+
+    m_leftMotor1.restoreFactoryDefaults();
+    m_rightMotor1.restoreFactoryDefaults();
+    m_leftMotor2.restoreFactoryDefaults();
+    m_rightMotor2.restoreFactoryDefaults();
+
+    m_leftMotor2.follow(m_leftMotor1);
+    m_rightMotor2.follow(m_rightMotor1);
+    Arm2.follow(Arma2, true);
+    
+
+    Intake2.restoreFactoryDefaults();
+    Arm2.restoreFactoryDefaults();
+    Arma2.restoreFactoryDefaults();
+    MClimb2.restoreFactoryDefaults();
+    
+
+    
+
+    m_myRobot = new DifferentialDrive(m_leftMotor1, m_rightMotor1);
+
+    arm_encoder = Arm2.getEncoder();
+  
+    photoSensor = new DigitalInput(5);
+
+    this.shooterAngle = new Solenoid(0, 2); // need to know id
+    
+  }
+
+  @Override
+  public void autonomousInit() {
+    startTime = Timer.getFPGATimestamp();
+    final int autoMode = autoChooser.getSelected();
+    // Run the appropriate command
+  }
+
+  @Override
+  public void autonomousPeriodic() {
+
+    final double time = Timer.getFPGATimestamp();
+    final int autoMode = autoChooser.getSelected();
+    if(autoMode == 1){
+
+     if (time - startTime > 0 && time - startTime <3){
+      Update_Limelight_Tracking();
+      autoDrive = 0;
+      autoTurn = m_LimelightSteerCommand;
+      m_myRobot.arcadeDrive(autoDrive, autoTurn);
+    
+    } else if(time - startTime>3 && time - startTime <7){
+      
+      Update_Limelight_Tracking();
+      autoDrive = 0;
+      autoTurn = m_LimelightSteerCommand;
+      m_myRobot.arcadeDrive(autoDrive, autoTurn);
+      sbSpeed = 1;
+      this.setWheelSpinnerShooter(1);
+      this.setShooter(-1);
+      m_myRobot.arcadeDrive(autoDrive, autoTurn);
+      this.setSBelt(sbSpeed);
+    
+    }else if(time - startTime > 7 && time - startTime <11){
+      
+      Update_Limelight_Tracking();
+      autoDrive = 0.5;
+      autoTurn = m_LimelightSteerCommand;
+      sbSpeed = 0;
+      this.setWheelSpinnerShooter(0);
+      this.setShooter(0);
+      m_myRobot.arcadeDrive(autoDrive, autoTurn);
+      this.setSBelt(sbSpeed);
+    
+    }else if(time - startTime > 11 && time - startTime <15){
+    
+    Update_Limelight_Tracking();
+    autoDrive = 0;
+    autoTurn = 0.5;
+    ballSpeed = 0;
+    sbSpeed = 0;
+    this.setWheelSpinnerShooter(ballSpeed);
+    this.setShooter(-ballSpeed);
+    m_myRobot.arcadeDrive(autoDrive, autoTurn);
+    this.setSBelt(sbSpeed);
+    }
+    
+    else {
+      
+      autoDrive = 0;
+      autoTurn = 0;
+      ballSpeed = 0.0;
+      sbSpeed = 0;
+      m_myRobot.arcadeDrive(autoDrive, autoTurn);
+      this.setWheelSpinnerShooter(ballSpeed);
+      this.setShooter(-ballSpeed);
+      this.setSBelt(sbSpeed);
+    }
+    
+  }else if (autoMode == 2){
+      
+    if (time - startTime > 0 && time - startTime <3){
+        
+        autoDrive = 0.4;
+        autoTurn = 0;
+        m_myRobot.arcadeDrive(autoDrive, autoTurn);
+      
+      }else if (time - startTime > 3 && time - startTime <15){
+        
+        autoDrive = 0;
+        autoTurn = 0;
+        m_myRobot.arcadeDrive(autoDrive, autoTurn);
+      } else {
+        autoDrive = 0;
+        autoTurn = 0;
+        m_myRobot.arcadeDrive(autoDrive, autoTurn);
+      }
+    } else if (autoMode == 3){
+    
+      if (time-startTime > 0 && time - startTime <6){
+        autoDrive = -0.4;
+        autoTurn = 0;
+
+        m_myRobot.arcadeDrive(autoDrive, autoTurn);
+
+      }
+      else if (time - startTime > 6 && time - startTime <9 ){
+        autoDrive = 0;
+        autoTurn = 0.25;
+        m_myRobot.arcadeDrive(autoDrive, autoTurn);
+       
+        
+      }
+      else if (time - startTime > 9 && time - startTime < 12 ){
+        autoDrive = 0;
+        autoTurn = m_LimelightSteerCommand;
+        sbSpeed = 0;
+        m_myRobot.arcadeDrive(autoDrive, autoTurn);
+        this.setSBelt(sbSpeed);
+        this.setShooter(-1);
+        this.setWheelSpinnerShooter(1);
+       
+      }
+      else if (time - startTime > 12 && time - startTime < 15){
+        autoDrive = 0.5;
+        autoTurn = 0;
+        suckSpeed = 0;
+        ibSpeed = 0;
+        sbSpeed = 0;
+        m_myRobot.arcadeDrive(autoDrive, autoTurn);
+        Intake2.set(suckSpeed);
+        this.setIBelt(ibSpeed);
+        this.setSBelt(sbSpeed);
+      }
+      
+    else {
+      autoDrive = 0;
+      autoTurn = 0;
+      suckSpeed = 0;
+      ibSpeed = 0;
+      sbSpeed = 0;
+      ballSpeed = 0;
+      m_myRobot.arcadeDrive(autoDrive, autoTurn);
+      Intake2.set(suckSpeed);
+      this.setIBelt(ibSpeed);
+      this.setSBelt(sbSpeed);
+      this.setWheelSpinnerShooter(ballSpeed);
+      this.setShooter(-ballSpeed);
+
+    }
+    }
+
+  }
+
+  @Override
+  public void teleopInit() {
+
+  }
+
+  @Override
+  public void teleopPeriodic() {
+
+    // read values periodically
+    final double x = tx.getDouble(0.0);
+    final double y = ty.getDouble(0.0);
+    final double area = ta.getDouble(0.0);
+
+    // post to smart dashboard periodically
+    SmartDashboard.putNumber("LimelightX", x);
+    SmartDashboard.putNumber("LimelightY", y);
+    SmartDashboard.putNumber("LimelightArea", area);
+    SmartDashboard.putNumber("Encoder Position", arm_encoder.getPosition());
+    
+    final double tx = NetworkTableInstance.getDefault().getTable("limelight").getEntry("tx").getDouble(0);
+    
+    String colorString;
+    boolean booleanGreen = false;
+    boolean booleanRed = false;
+
+    
+    
+     if(photoSensor.get()){
+      colorString = "green";
+     booleanGreen = false;
+     booleanRed = true;
+    
+    }else{
+      
+      colorString = "red";
+      booleanGreen = true;
+      booleanRed = false;
+    }
+    
+    SmartDashboard.putBoolean("isGreen", booleanGreen);
+    SmartDashboard.putBoolean("isRed", booleanGreen);
+    
+    Update_Limelight_Tracking();
+
+    final double steer = this.driver.getX(Hand.kRight);
+    final double drive = this.driver.getY(Hand.kLeft);
+    final boolean auto = this.driver.getAButton();
+    final boolean suck = this.driver.getXButton();
+    final boolean back = this.driver.getBButton();
+    final boolean uarm = this.driver.getBumper(Hand.kRight);
+    final boolean darm = this.driver.getBumper(Hand.kLeft);
+    final boolean usht = this.mech.getAButton();
+    final boolean dsht = this.mech.getBButton();
+    final boolean uclm = this.mech.getXButton();
+    final boolean dclm = this.mech.getYButton();
+    final boolean lclm = this.mech.getBumper(Hand.kRight);
+    final boolean rclm = this.mech.getBumper(Hand.kLeft);
+    double shoot = this.driver.getTriggerAxis(Hand.kRight);
+    double rev = this.driver.getTriggerAxis(Hand.kLeft);
+
+
+    
+    double ballSpeed = 0;
+    double suckSpeed = 0;
+    if (back){
+      this.setIBelt(-0.2);
+    }
+      
+    if ( rev > 0.2){
+      Update_Limelight_Tracking();
+      m_myRobot.arcadeDrive(-drive, m_LimelightSteerCommand);
+      setWheelSpinnerShooter(-0.5);
+      setShooter(-0.5);
+    }
+    if ( rev < 0.2){
+      setWheelSpinnerShooter(0);
+      setShooter(0);
+
+    }
+    if ( shoot > 0.2){
+      this.setSBelt(-1);
+      this.setIBelt(-0.5);
+
+    }
+    if ( shoot < 0.2){
+      this.setSBelt(0);
+    }
+    
+   
+    if (suck){
+
+      if(photoSensor.get() == true){
+        suckSpeed = 1.0;
+        Intake2.set(suckSpeed);
+        this.setIBelt(-0.5);
+        this.setSBelt(-1);
+      }
+      if(photoSensor.get() == false){
+        suckSpeed = 1.0;
+        Intake2.set(suckSpeed);
+        this.setIBelt(-0.5);// was -1
+        this.setSBelt(0);
+        
+        
+      }
+    
+     if (suck == false && shoot < 0.2 && back == false){
+      
+      suckSpeed = 0;
+      Intake2.set(suckSpeed);
+      this.setIBelt(0);
+    }
+
+    Intake2.set(suckSpeed);
+
+    if (auto) {
+      
+      m_LimelightHasValidTarget = true;
+      
+      if (m_LimelightHasValidTarget) {
+        
+        m_myRobot.arcadeDrive(-drive, m_LimelightSteerCommand);
+      
+      } else {
+        
+        m_myRobot.arcadeDrive(0.0, 0.0);
+      
+      }
+    
+    } else {
+      
+      m_myRobot.arcadeDrive(-drive, steer);
+    
+    }
+    if(darm){
+      
+     Arm2.set(0.2);
+      Arma2.set(-0.2);
+        
+        
+    }
+  
+    if(uarm){
+   Arm2.set(-0.2);
+    Arma2.set(0.2);
+        
+       
+    }
+    if(uarm == false && darm == false){
+    Arm2.set(0);
+    Arma2.set(0);
+    }
+   
+
+      if (usht){
+        shooterAngle.set(true);
+      }
+
+      if (dsht){
+        shooterAngle.set(false); 
+      } 
+    /*  if (uclm){
+        Climb2.set(1);
+        Climber2.set(-1);
+      } 
+      if (dclm){
+        Climb2.set(-1);
+        Climber2.set(1);
+      } 
+      if(dclm == false && uclm == false){
+        Climb2.set(0);
+        Climber2.set(0); 
+
+      } */
+      if (lclm){
+        MClimb2.set(0.5);
+      } 
+      if (rclm){
+        MClimb2.set(-0.5);
+      } 
+      if (rclm == false && lclm == false){
+        MClimb2.set(0);
+      }
+    }
+    }
+  
+
+  @Override
+  public void testPeriodic() {
+  }
+
+  public void Update_Limelight_Tracking() {
+    // These numbers must be tuned for your Robot! Be careful!
+    final double STEER_K = 0.03; // how hard to turn toward the target
+    final double DRIVE_K = 0.26; // how hard to drive fwd toward the target
+    final double DESIRED_TARGET_AREA = 8; // Area of the target when the robot reaches the wall
+    final double MAX_DRIVE = 0.3; // Simple speed limit so we don't drive too fast
+
+    final double tv = NetworkTableInstance.getDefault().getTable("limelight").getEntry("tv").getDouble(0);
+    final double tx = NetworkTableInstance.getDefault().getTable("limelight").getEntry("tx").getDouble(0);
+    final double ty = NetworkTableInstance.getDefault().getTable("limelight").getEntry("ty").getDouble(0);
+    final double ta = NetworkTableInstance.getDefault().getTable("limelight").getEntry("ta").getDouble(0);
+
+    if (m_LimelightHasValidTarget = true) {
+
+      final double steer_cmd = tx * STEER_K;
+      m_LimelightSteerCommand = steer_cmd;
+      
+      if (ta > 8) {
+        
+        m_myRobot.arcadeDrive(0.0, m_LimelightSteerCommand);
+      }
+    }
+    
+    if (m_LimelightHasValidTarget2 = true) {
+
+      final double steer_cmd = tx * STEER_K;
+          m_LimelightSteerCommand = steer_cmd;
+            
+            if (ta > 8){
+              m_myRobot.arcadeDrive(0.0,m_LimelightSteerCommand);
+            }
+        }
+      }
+    
+      public void setWheelSpinnerShooter( double output) {
+    this.wheelSpinnerShooter2.set(ControlMode.PercentOutput, output); // not using PID
+  }
+
+  public void setShooter(double output) {
+    
+    this.Shooter2.set(ControlMode.PercentOutput, output); // not using PID
+  }
+
+  public void setSBelt( double output) {
+    this.SBelt2.set(ControlMode.PercentOutput, output);
+  }
+
+  public void setIBelt( double output) {
+        this.IBelt2.set(ControlMode.PercentOutput, output);
+      }
+    }
+     
